@@ -6,20 +6,21 @@ const HEADERS = ['id', 'coverUrl', 'code', 'Release date', 'actors', 'genre', 'd
 function parseServiceAccountJson(raw: string) {
   const trimmed = raw.trim();
   const tryParse = (text: string) => {
-    const parsed = JSON.parse(text) as unknown;
-    return parsed;
+    return JSON.parse(text) as unknown;
   };
 
   // 1) Raw JSON object string: {"type":"service_account",...}
-  // 2) JSON string that itself contains JSON (some platforms wrap in quotes)
-  // 3) Base64-encoded JSON (optional convenience)
+  // 2) Base64-encoded JSON (Vercel: paste base64 as value, or value may be wrapped in quotes)
+  // 3) Wrapped JSON string (some platforms store as quoted string)
   let parsed: unknown;
+
   try {
     parsed = tryParse(trimmed);
   } catch {
-    // If it doesn't look like JSON, attempt base64 decode
+    // Not valid JSON – try base64 (strip whitespace in case env added newlines)
     try {
-      const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+      const b64 = trimmed.replace(/\s/g, '');
+      const decoded = Buffer.from(b64, 'base64').toString('utf8');
       parsed = tryParse(decoded.trim());
     } catch {
       throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
@@ -27,8 +28,18 @@ function parseServiceAccountJson(raw: string) {
   }
 
   if (typeof parsed === 'string') {
-    // Wrapped JSON string
-    parsed = tryParse(parsed);
+    // Value was e.g. quoted in Vercel – content might be base64 or JSON
+    try {
+      const inner = parsed.trim();
+      if (inner.startsWith('{')) {
+        parsed = tryParse(inner);
+      } else {
+        const decoded = Buffer.from(inner.replace(/\s/g, ''), 'base64').toString('utf8');
+        parsed = tryParse(decoded.trim());
+      }
+    } catch {
+      throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+    }
   }
 
   if (!parsed || typeof parsed !== 'object') {
@@ -38,9 +49,22 @@ function parseServiceAccountJson(raw: string) {
   const key = parsed as Record<string, unknown>;
   const privateKey = key.private_key;
   if (typeof privateKey === 'string') {
-    // Vercel/env UIs sometimes end up double-escaping newlines, leaving "\\n" in the string.
-    // GoogleAuth/crypto needs real newlines to decode the PEM key.
-    key.private_key = privateKey.replace(/\\n/g, '\n');
+    // Vercel/env UIs sometimes double-escape newlines ("\\n") or strip them; OpenSSL needs real newlines.
+    let pem = privateKey.replace(/\\n/g, '\n');
+    // If there are still no newlines between BEGIN and END, PEM is one line and decoder fails. Restore line breaks.
+    if (pem.includes('-----BEGIN') && !pem.includes('\n') && pem.length > 80) {
+      pem = pem
+        .replace(/-----BEGIN PRIVATE KEY-----/, '-----BEGIN PRIVATE KEY-----\n')
+        .replace(/-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----\n');
+      const beginEnd = pem.indexOf('-----END PRIVATE KEY-----');
+      const beginStart = pem.indexOf('-----BEGIN PRIVATE KEY-----') + 28;
+      const base64 = pem.slice(beginStart, beginEnd).replace(/\s/g, '');
+      const lines = base64.match(/.{1,64}/g) ?? [];
+      key.private_key =
+        '-----BEGIN PRIVATE KEY-----\n' + lines.join('\n') + '\n-----END PRIVATE KEY-----\n';
+    } else {
+      key.private_key = pem;
+    }
   }
 
   return key;
