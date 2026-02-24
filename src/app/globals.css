@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0f0f0f;
+  --foreground: #fafafa;
+  --card: #1a1a1a;
+  --accent: #e50914;
+  --muted: #737373;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+/* Transitions ใช้ร่วมกับ Tailwind */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
