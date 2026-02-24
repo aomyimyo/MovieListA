@@ -3,11 +3,54 @@ import { google } from 'googleapis';
 const SHEET_NAME = 'movies';
 const HEADERS = ['id', 'coverUrl', 'code', 'Release date', 'actors', 'genre', 'description'];
 
+function parseServiceAccountJson(raw: string) {
+  const trimmed = raw.trim();
+  const tryParse = (text: string) => {
+    const parsed = JSON.parse(text) as unknown;
+    return parsed;
+  };
+
+  // 1) Raw JSON object string: {"type":"service_account",...}
+  // 2) JSON string that itself contains JSON (some platforms wrap in quotes)
+  // 3) Base64-encoded JSON (optional convenience)
+  let parsed: unknown;
+  try {
+    parsed = tryParse(trimmed);
+  } catch {
+    // If it doesn't look like JSON, attempt base64 decode
+    try {
+      const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+      parsed = tryParse(decoded.trim());
+    } catch {
+      throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+    }
+  }
+
+  if (typeof parsed === 'string') {
+    // Wrapped JSON string
+    parsed = tryParse(parsed);
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+  }
+
+  const key = parsed as Record<string, unknown>;
+  const privateKey = key.private_key;
+  if (typeof privateKey === 'string') {
+    // Vercel/env UIs sometimes end up double-escaping newlines, leaving "\\n" in the string.
+    // GoogleAuth/crypto needs real newlines to decode the PEM key.
+    key.private_key = privateKey.replace(/\\n/g, '\n');
+  }
+
+  return key;
+}
+
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (raw) {
     try {
-      const key = JSON.parse(raw);
+      const key = parseServiceAccountJson(raw);
       return new google.auth.GoogleAuth({
         credentials: key,
         scopes: [
@@ -17,7 +60,9 @@ function getAuth() {
         ],
       });
     } catch {
-      throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+      throw new Error(
+        'Invalid GOOGLE_SERVICE_ACCOUNT_JSON (ensure it is valid JSON and private_key newlines are preserved)'
+      );
     }
   }
   const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
