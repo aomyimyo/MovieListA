@@ -78,7 +78,9 @@ export async function updateMovie(id: string, movie: Partial<Movie>): Promise<Mo
     updated.description,
   ];
   const { sheets, sheetId } = getSheetsClient();
-  const range = `${SHEET_NAME}!A${index + 2}:G${index + 2}`;
+  // all เป็น reverse (index 0 = แถวล่าสุด) → แถวใน Sheet 1-based = 2 + (all.length - 1 - index) = all.length - index + 1
+  const sheetRow1Based = all.length - index + 1;
+  const range = `${SHEET_NAME}!A${sheetRow1Based}:G${sheetRow1Based}`;
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
     range,
@@ -97,6 +99,8 @@ export async function deleteMovie(id: string): Promise<boolean> {
   const sheet = sheetRes.data.sheets?.find((s) => s.properties?.title === SHEET_NAME);
   const sheetIdNum = sheet?.properties?.sheetId;
   if (sheetIdNum === undefined) return false;
+  // all เป็น reverse (index 0 = แถวล่าสุดใน Sheet) → แถวที่ index ใน Sheet = แถวที่ (all.length - index) ในข้อมูล (0-based ของ API = แถวที่ 2 ขึ้นไป)
+  const sheetRowZeroBased = all.length - index;
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: sheetId,
     requestBody: {
@@ -106,8 +110,8 @@ export async function deleteMovie(id: string): Promise<boolean> {
             range: {
               sheetId: sheetIdNum,
               dimension: 'ROWS',
-              startIndex: index + 1,
-              endIndex: index + 2,
+              startIndex: sheetRowZeroBased,
+              endIndex: sheetRowZeroBased + 1,
             },
           },
         },

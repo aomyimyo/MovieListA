@@ -1,16 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Movie } from '@/types/movie';
 import { toImageUrl } from '@/lib/cover-image';
 
 type Props = { movie?: Movie };
 
+/** เก็บไฟล์ที่เลือกไว้ก่อน จะอัปโหลดเมื่อกดเพิ่มหนัง */
+type PendingFile = { file: File; previewUrl: string };
+
 export default function MovieForm({ movie }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [coverUrl, setCoverUrl] = useState(movie?.coverUrl ?? '');
+  const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
   const [code, setCode] = useState(movie?.code ?? '');
   const [day, setDay] = useState(() => parseDatePart(movie?.date, 0));
   const [month, setMonth] = useState(() => parseDatePart(movie?.date, 1));
@@ -18,34 +22,28 @@ export default function MovieForm({ movie }: Props) {
   const [actors, setActors] = useState(movie?.actors ?? '');
   const [genre, setGenre] = useState(movie?.genre ?? '');
   const [description, setDescription] = useState(movie?.description ?? '');
-  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!movie?.id;
 
-  async function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
-    setUploading(true);
-    try {
-      const base64 = await fileToBase64(file);
-      const res = await fetch('/api/upload-cover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          base64,
-          mimeType: file.type,
-          fileName: file.name || `cover-${Date.now()}.${file.type.split('/')[1]}`,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.url) setCoverUrl(data.url);
-      else alert(data.error || `อัปโหลดไม่สำเร็จ (${res.status})`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ';
-      alert(msg);
-    } finally {
-      setUploading(false);
+    if (pendingFile) URL.revokeObjectURL(pendingFile.previewUrl);
+    setPendingFile({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+    setCoverUrl('');
+  }
+
+  function clearCover() {
+    if (pendingFile) {
+      URL.revokeObjectURL(pendingFile.previewUrl);
+      setPendingFile(null);
     }
+    setCoverUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function getDateString() {
@@ -63,7 +61,34 @@ export default function MovieForm({ movie }: Props) {
     e.preventDefault();
     setLoading(true);
     try {
-      const body = { coverUrl, code, date: getDateString(), actors, genre, description };
+      let finalCoverUrl = coverUrl;
+      if (pendingFile) {
+        const base64 = await fileToBase64(pendingFile.file);
+        const res = await fetch('/api/upload-cover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base64,
+            mimeType: pendingFile.file.type,
+            fileName:
+              pendingFile.file.name ||
+              `cover-${Date.now()}.${pendingFile.file.type.split('/')[1]}`,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) {
+          throw new Error(data.error || `อัปโหลดรูปไม่สำเร็จ (${res.status})`);
+        }
+        finalCoverUrl = data.url;
+      }
+      const body = {
+        coverUrl: finalCoverUrl,
+        code,
+        date: getDateString(),
+        actors,
+        genre,
+        description,
+      };
       const url = isEdit ? `/api/movies/${movie.id}` : '/api/movies';
       const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, {
@@ -90,30 +115,50 @@ export default function MovieForm({ movie }: Props) {
       <div>
         <label className="block text-sm text-gray-400">รูปปก</label>
         <div className="mt-1 flex items-center gap-4">
-          {coverUrl && (
-            <div className="h-24 w-16 overflow-hidden rounded border border-white/10 bg-gray-800">
-              <img
-                src={toImageUrl(coverUrl)}
-                alt="Cover"
-                className="h-full w-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+          {(pendingFile || coverUrl) && (
+            <div className="relative inline-block">
+              <div className="h-24 w-16 overflow-hidden rounded border border-white/10 bg-gray-800">
+                <img
+                  src={pendingFile ? pendingFile.previewUrl : toImageUrl(coverUrl)}
+                  alt="Cover"
+                  className="h-full w-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              {pendingFile && (
+                <span className="mt-1 block text-xs text-gray-500">
+                  จะอัปโหลดเมื่อกดเพิ่มหนัง
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={clearCover}
+                className="mt-1 text-xs text-red-400 hover:text-red-300"
+              >
+                ลบรูป
+              </button>
             </div>
           )}
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             onChange={handleCoverChange}
-            disabled={uploading}
             className="block text-sm text-gray-400 file:mr-2 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1 file:text-white"
           />
-          {uploading && <span className="text-sm text-gray-500">กำลังอัปโหลด...</span>}
         </div>
         <p className="mt-1 text-xs text-gray-500">หรือใส่ URL โดยตรงด้านล่าง (แก้ไขได้)</p>
         <input
           type="url"
           value={coverUrl}
-          onChange={(e) => setCoverUrl(e.target.value)}
+          onChange={(e) => {
+            setCoverUrl(e.target.value);
+            if (pendingFile) {
+              URL.revokeObjectURL(pendingFile.previewUrl);
+              setPendingFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+          }}
           placeholder="https://..."
           className="mt-1 w-full rounded border border-white/20 bg-white/5 px-3 py-2 text-white placeholder-gray-500 focus:border-red-500 focus:outline-none"
         />

@@ -4,7 +4,7 @@ const SHEET_NAME = 'movies';
 const HEADERS = ['id', 'coverUrl', 'code', 'Release date', 'actors', 'genre', 'description'];
 
 function parseServiceAccountJson(raw: string) {
-  const trimmed = raw.trim();
+  const trimmed = raw.replace(/^\uFEFF/, '').trim();
   const tryParse = (text: string) => {
     return JSON.parse(text) as unknown;
   };
@@ -13,37 +13,42 @@ function parseServiceAccountJson(raw: string) {
   // 2) Base64-encoded JSON (Vercel: paste base64 as value, or value may be wrapped in quotes)
   // 3) Wrapped JSON string (some platforms store as quoted string)
   let parsed: unknown;
+  let lastErr: Error | null = null;
 
   try {
     parsed = tryParse(trimmed);
-  } catch {
+  } catch (e) {
+    lastErr = e instanceof Error ? e : new Error(String(e));
     // Not valid JSON – try base64 (strip whitespace in case env added newlines)
     try {
       const b64 = trimmed.replace(/\s/g, '');
       const decoded = Buffer.from(b64, 'base64').toString('utf8');
-      parsed = tryParse(decoded.trim());
-    } catch {
-      throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+      parsed = tryParse(decoded.replace(/^\uFEFF/, '').trim());
+      lastErr = null;
+    } catch (e2) {
+      const err2 = e2 instanceof Error ? e2 : new Error(String(e2));
+      throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${err2.message}`);
     }
   }
 
   if (typeof parsed === 'string') {
     // Value was e.g. quoted in Vercel – content might be base64 or JSON
     try {
-      const inner = parsed.trim();
+      const inner = parsed.replace(/^\uFEFF/, '').trim();
       if (inner.startsWith('{')) {
         parsed = tryParse(inner);
       } else {
         const decoded = Buffer.from(inner.replace(/\s/g, ''), 'base64').toString('utf8');
-        parsed = tryParse(decoded.trim());
+        parsed = tryParse(decoded.replace(/^\uFEFF/, '').trim());
       }
-    } catch {
-      throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      throw new Error(`Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ${err.message}`);
     }
   }
 
   if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON');
+    throw new Error('Invalid GOOGLE_SERVICE_ACCOUNT_JSON: parsed value is not an object');
   }
 
   const key = parsed as Record<string, unknown>;
@@ -83,10 +88,16 @@ function getAuth() {
           'https://www.googleapis.com/auth/drive.file',
         ],
       });
-    } catch {
-      throw new Error(
-        'Invalid GOOGLE_SERVICE_ACCOUNT_JSON (ensure it is valid JSON and private_key newlines are preserved)'
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Safe debug for Vercel Logs (no secret): length + first 40 chars
+      console.error(
+        '[GOOGLE_JSON] length=',
+        raw.length,
+        'prefix=',
+        raw.substring(0, 40).replace(/[^\x20-\x7E]/g, '?')
       );
+      throw new Error(msg);
     }
   }
   const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;

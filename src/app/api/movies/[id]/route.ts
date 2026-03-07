@@ -47,12 +47,18 @@ export async function DELETE(
   try {
     const { id } = await params;
     const movie = await getMovieById(id);
-    if (movie?.coverUrl) {
+    if (!movie) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // ลบแถวใน Sheet ก่อน เพื่อให้ข้อมูลถูกลบแน่นอน (ไม่ขึ้นกับสิทธิ์ลบรูปใน Drive/Cloudinary)
+    const ok = await deleteMovie(id);
+    if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // ลบรูปตามหลัง (ถ้าไม่มีสิทธิ์ก็แค่ skip ไม่กระทบการลบข้อมูล)
+    if (movie.coverUrl) {
       await deleteImageFromCloudinaryIfExists(movie.coverUrl);
       await deleteFileFromDriveIfExists(movie.coverUrl);
     }
-    const ok = await deleteMovie(id);
-    if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     return new NextResponse(null, { status: 204 });
   } catch (e) {
     console.error(e);

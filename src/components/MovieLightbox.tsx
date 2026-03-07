@@ -39,13 +39,21 @@ export default function MovieLightbox({ movie, onClose }: Props) {
       const res = await fetch(`/api/movies/${movie.id}`, { method: 'DELETE' });
       if (res.ok) {
         doClose();
-        router.refresh();
+        // รีเฟรชหลังปิด Lightbox เพื่อให้รายการบนหน้าแรกอัปเดต
+        setTimeout(() => router.refresh(), 350);
       } else alert('ลบไม่สำเร็จ');
     } catch {
       alert('เกิดข้อผิดพลาด');
     } finally {
       setDeleting(false);
     }
+  }
+
+  function handleActorClick(actorName: string) {
+    const q = actorName.trim();
+    if (!q) return;
+    doClose();
+    router.push(`/?q=${encodeURIComponent(q)}`);
   }
 
   return (
@@ -92,7 +100,22 @@ export default function MovieLightbox({ movie, onClose }: Props) {
           {movie.actors && (
             <p className="mt-2">
               <span className="text-gray-500">นักแสดง:</span>{' '}
-              <span className="text-white">{movie.actors}</span>
+              <span className="flex flex-wrap items-center gap-1.5 text-white">
+                {movie.actors
+                  .split(/[,،/]/)
+                  .map((name) => name.trim())
+                  .filter(Boolean)
+                  .map((actor) => (
+                    <button
+                      key={actor}
+                      type="button"
+                      onClick={() => handleActorClick(actor)}
+                      className="cursor-pointer rounded px-2 py-0.5 text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
+                    >
+                      {actor}
+                    </button>
+                  ))}
+              </span>
             </p>
           )}
           {movie.description && (
@@ -104,7 +127,7 @@ export default function MovieLightbox({ movie, onClose }: Props) {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href={`/movie/${movie.id}/edit`}
-              className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700"
+              className="relative z-10 rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700"
             >
               แก้ไข
             </Link>
@@ -112,14 +135,14 @@ export default function MovieLightbox({ movie, onClose }: Props) {
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="rounded border border-red-500/50 px-4 py-2 text-sm text-red-400 transition-colors duration-200 hover:bg-red-500/10 disabled:opacity-50"
+              className="relative z-10 cursor-pointer select-none rounded border border-red-500/50 px-4 py-2 text-sm text-red-400 transition-colors duration-200 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deleting ? 'กำลังลบ...' : 'ลบ'}
             </button>
             <button
               type="button"
               onClick={doClose}
-              className="rounded border border-white/20 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-white/10"
+              className="relative z-10 cursor-pointer select-none rounded border border-white/20 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-white/10"
             >
               ปิด
             </button>

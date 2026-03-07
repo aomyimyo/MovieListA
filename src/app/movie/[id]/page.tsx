@@ -58,14 +58,14 @@ export default async function MovieDetailPage({
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={`/movie/${id}/edit`}
-              className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700"
+              className="relative z-10 rounded bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700"
             >
               แก้ไข
             </Link>
             <DeleteButton movieId={id} movieCode={movie.code} />
             <Link
               href="/"
-              className="rounded border border-white/20 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-white/10"
+              className="relative z-10 rounded border border-white/20 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-white/10"
             >
               กลับ
             </Link>
