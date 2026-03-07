@@ -60,7 +60,7 @@ export default function MovieLightbox({ movie, onClose }: Props) {
       onClick={(e) => e.target === e.currentTarget && doClose()}
     >
       <div
-        className={`relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-gray-900 shadow-xl ${closing ? 'animate-scale-out' : 'animate-scale-in'}`}
+        className={`relative z-[51] max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-gray-900 shadow-xl ${closing ? 'animate-scale-out' : 'animate-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -101,14 +101,19 @@ export default function MovieLightbox({ movie, onClose }: Props) {
                   .map((name) => name.trim())
                   .filter(Boolean)
                   .map((actor) => (
-                    <a
+                    <button
                       key={actor}
-                      href={searchUrl(actor)}
-                      onClick={doClose}
-                      className="cursor-pointer rounded px-2 py-0.5 text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        doClose();
+                        window.location.href = searchUrl(actor);
+                      }}
+                      className="relative z-[60] cursor-pointer rounded px-2 py-0.5 text-left text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
                     >
                       {actor}
-                    </a>
+                    </button>
                   ))}
               </span>
             </p>
