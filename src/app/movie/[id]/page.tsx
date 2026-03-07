@@ -46,7 +46,21 @@ export default async function MovieDetailPage({
           {movie.actors && (
             <p className="mt-2">
               <span className="text-gray-500">นักแสดง:</span>{' '}
-              <span className="text-white">{movie.actors}</span>
+              <span className="flex flex-wrap items-center gap-1.5 text-white">
+                {movie.actors
+                  .split(/[,،/]/)
+                  .map((name) => name.trim())
+                  .filter(Boolean)
+                  .map((actor) => (
+                    <Link
+                      key={actor}
+                      href={`/?q=${encodeURIComponent(actor)}`}
+                      className="rounded px-2 py-0.5 text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
+                    >
+                      {actor}
+                    </Link>
+                  ))}
+              </span>
             </p>
           )}
           {movie.description && (
