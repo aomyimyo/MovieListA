@@ -101,14 +101,14 @@ export default function MovieLightbox({ movie, onClose }: Props) {
                   .map((name) => name.trim())
                   .filter(Boolean)
                   .map((actor) => (
-                    <Link
+                    <a
                       key={actor}
                       href={searchUrl(actor)}
                       onClick={doClose}
                       className="cursor-pointer rounded px-2 py-0.5 text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
                     >
                       {actor}
-                    </Link>
+                    </a>
                   ))}
               </span>
             </p>
