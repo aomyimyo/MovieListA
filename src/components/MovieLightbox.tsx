@@ -49,12 +49,7 @@ export default function MovieLightbox({ movie, onClose }: Props) {
     }
   }
 
-  function handleActorClick(actorName: string) {
-    const q = actorName.trim();
-    if (!q) return;
-    doClose();
-    router.push(`/?q=${encodeURIComponent(q)}`);
-  }
+  const searchUrl = (q: string) => `/?q=${encodeURIComponent(q.trim())}`;
 
   return (
     <div
@@ -106,14 +101,14 @@ export default function MovieLightbox({ movie, onClose }: Props) {
                   .map((name) => name.trim())
                   .filter(Boolean)
                   .map((actor) => (
-                    <button
+                    <Link
                       key={actor}
-                      type="button"
-                      onClick={() => handleActorClick(actor)}
+                      href={searchUrl(actor)}
+                      onClick={doClose}
                       className="cursor-pointer rounded px-2 py-0.5 text-white underline decoration-red-500/60 underline-offset-2 transition-colors hover:bg-red-500/20 hover:decoration-red-400"
                     >
                       {actor}
-                    </button>
+                    </Link>
                   ))}
               </span>
             </p>
